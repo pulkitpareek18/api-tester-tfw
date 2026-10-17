@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RestForge - API Testing Client</title>
+    
+    <!-- Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS with CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        zinc: {
+                            850: '#1f2024',
+                            925: '#111215',
+                            950: '#090a0c'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* Custom scrollbar matching shadcn */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+
+        /* JSON Syntax Highlighting tokens */
+        .token-key { color: #93c5fd; }
+        .token-string { color: #86efac; }
+        .token-number { color: #fca5a5; }
+        .token-boolean { color: #fde047; }
+        .token-null { color: #c084fc; }
+
+        /* Disable input spin button */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+        /* Focus rings standard in shadcn */
+        .shadcn-focus {
+            outline: none;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .shadcn-focus:focus-visible {
+            border-color: #71717a;
+            box-shadow: 0 0 0 1px #71717a;
+        }
+    </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 font-sans antialiased h-screen overflow-hidden flex flex-col selection:bg-zinc-800 selection:text-zinc-200">
+
+    <!-- Top App Navigation Bar -->
+    <header class="h-14 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur px-4 flex items-center justify-between shrink-0 z-20">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-zinc-800 to-zinc-700 border border-zinc-700/60 flex items-center justify-center shadow-inner">
+                <i data-lucide="zap" class="w-4 h-4 text-emerald-400"></i>
+            </div>
+            <div class="flex items-baseline gap-2">
+                <span class="font-bold text-sm tracking-tight text-zinc-100">RestForge</span>
+                <span class="text-[11px] font-medium px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">HTTP Studio</span>
+            </div>
+        </div>
+
+        <!-- Presets & Quick Loaders -->
+        <div class="flex items-center gap-2">
+            <div class="relative group">
+                <select id="preset-select" class="h-8 pl-2.5 pr-8 bg-zinc-900 border border-zinc-800 rounded-md text-xs font-medium text-zinc-300 hover:border-zinc-700 transition appearance-none cursor-pointer shadcn-focus">
+                    <option value="" disabled selected>⚡ Quick Presets</option>
+                    <option value="get-users">GET • JSONPlaceholder Users</option>
+                    <option value="post-posts">POST • Create New Post</option>
+                    <option value="put-posts">PUT • Update Post (ID 1)</option>
+                    <option value="patch-posts">PATCH • Partial Title Update</option>
+                    <option value="delete-posts">DELETE • Remove Post (ID 1)</option>
+                    <option value="httpbin-headers">GET • HttpBin Inspect Headers</option>
+                    <option value="httpbin-status404">GET • HttpBin Simulate 404</option>
+                </select>
+                <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-zinc-400 absolute right-2.5 top-2.5 pointer-events-none"></i>
+            </div>
+
+            <!-- Environment Badge Mock -->
+            <div class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-900/60 border border-zinc-800 text-xs text-zinc-400">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Active Browser Context</span>
+            </div>
+
+            <!-- Clear All / Reset -->
+            <button id="btn-reset-req" title="Clear current request configuration" class="h-8 px-2.5 rounded-md border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition text-xs flex items-center gap-1.5">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                <span class="hidden md:inline">Reset</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="flex-1 flex overflow-hidden">
+        
+        <!-- Collapsible Sidebar: History -->
+        <aside id="sidebar" class="w-72 border-r border-zinc-800 bg-zinc-925 flex flex-col shrink-0 transition-all duration-200">
+            <!-- Sidebar Header -->
+            <div class="p-3 border-b border-zinc-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="history" class="w-4 h-4 text-zinc-400"></i>
+                    <span class="text-xs font-semibold tracking-wide uppercase text-zinc-400">History</span>
+                    <span id="history-badge" class="text-[10px] bg-zinc-800 text-zinc-300 px-1.5 py-0.2 rounded-full font-mono">0</span>
+                </div>
+                <button id="btn-clear-history" title="Clear All History" class="text-zinc-500 hover:text-rose-400 p-1 rounded hover:bg-zinc-800/80 transition">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+
+            <!-- History Search -->
+            <div class="p-2.5 border-b border-zinc-800/70">
+                <div class="relative">
+                    <i data-lucide="search" class="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2.5"></i>
+                    <input type="text" id="history-search" placeholder="Filter history..." class="w-full bg-zinc-900 border border-zinc-800 rounded-md pl-8 pr-2.5 py-1 text-xs text-zinc-200 placeholder-zinc-500 shadcn-focus">
+                </div>
+            </div>
+
+            <!-- History Item List -->
+            <div id="history-list" class="flex-1 overflow-y-auto divide-y divide-zinc-900/80">
+                <!-- Injected via JavaScript -->
+            </div>
+
+            <div class="p-2 border-t border-zinc-800 text-center">
+                <span class="text-[11px] text-zinc-500">Auto-saved to localStorage</span>
+            </div>
+        </aside>
+
+        <!-- Workbench (Request + Response) -->
+        <main class="flex-1 flex flex-col overflow-y-auto lg:overflow-hidden lg:grid lg:grid-cols-12 bg-zinc-950 divide-y lg:divide-y-0 lg:divide-x divide-zinc-800">
+            
+            <!-- Left Pane: Request Builder (7 Cols) -->
+            <section class="lg:col-span-7 flex flex-col h-full overflow-hidden bg-zinc-950">
+                
+                <!-- URL Bar Form -->
+                <div class="p-4 border-b border-zinc-800 bg-zinc-950">
+                    <div class="flex flex-col sm:flex-row items-stretch gap-2">
+                        
+                        <!-- Method Dropdown -->
+                        <div class="relative shrink-0">
+                            <select id="http-method" class="h-10 pl-3 pr-8 bg-zinc-900 border border-zinc-800 rounded-md font-mono text-xs font-bold tracking-wider cursor-pointer appearance-none shadcn-focus transition text-emerald-400">
+                                <option value="GET" class="text-emerald-400">GET</option>
+                                <option value="POST" class="text-blue-400">POST</option>
+                                <option value="PUT" class="text-amber-400">PUT</option>
+                                <option value="PATCH" class="text-purple-400">PATCH</option>
+                                <option value="DELETE" class="text-rose-400">DELETE</option>
+                            </select>
+                            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-zinc-500 absolute right-2.5 top-3.5 pointer-events-none"></i>
+                        </div>
+
+                        <!-- URL Input -->
+                        <div class="relative flex-1">
+                            <input type="text" id="request-url" placeholder="Enter request URL or paste cURL" value="https://jsonplaceholder.typicode.com/posts/1" class="w-full h-10 px-3 bg-zinc-900 border border-zinc-800 rounded-md font-mono text-xs text-zinc-100 placeholder-zinc-500 shadcn-focus" autocomplete="off" spellcheck="false">
+                            <button id="btn-clear-url" title="Clear URL" class="absolute right-2.5 top-2.5 text-zinc-500 hover:text-zinc-300 p-0.5 rounded hidden">
+                                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+
+                        <!-- Send / Cancel Button -->
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <button id="btn-send" class="h-10 px-4 rounded-md bg-zinc-100 hover:bg-zinc-200 active:bg-zinc-300 text-zinc-950 font-semibold text-xs transition flex items-center justify-center gap-2 shadow-sm min-w-[90px]">
+                                <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                                <span>Send</span>
+                            </button>
+                            <button id="btn-cancel" class="h-10 px-3 rounded-md bg-rose-950/60 border border-rose-800 text-rose-300 hover:bg-rose-900 text-xs font-medium transition hidden items-center justify-center gap-1.5">
+                                <i data-lucide="circle-slash" class="w-3.5 h-3.5"></i>
+                                <span>Cancel</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Shortcut Help & Dynamic Info -->
+                    <div class="mt-2 flex items-center justify-between text-[11px] text-zinc-500">
+                        <span class="flex items-center gap-1">
+                            <span>Press</span>
+                            <kbd class="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-300 font-mono text-[10px]">⌘</kbd>
+                            <span>+</span>
+                            <kbd class="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-300 font-mono text-[10px]">Enter</kbd>
+                            <span>to execute</span>
+                        </span>
+                        <span id="url-param-count" class="font-mono text-zinc-400">0 params</span>
+                    </div>
+                </div>
+
+                <!-- Request Options Tabs -->
+                <div class="border-b border-zinc-800 px-4 bg-zinc-925 flex items-center justify-between">
+                    <nav class="flex items-center gap-1 -mb-px" id="req-tabs">
+                        <button data-tab="params" class="tab-btn active px-3 py-2.5 text-xs font-medium border-b-2 border-zinc-100 text-zinc-100 flex items-center gap-1.5 transition">
+                            Params
+                            <span id="tab-count-params" class="px-1 py-0.2 rounded-full text-[10px] bg-zinc-800 text-zinc-300 hidden">0</span>
+                        </button>
+                        <button data-tab="headers" class="tab-btn px-3 py-2.5 text-xs font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5 transition">
+                            Headers
+                            <span id="tab-count-headers" class="px-1 py-0.2 rounded-full text-[10px] bg-zinc-800 text-zinc-300">1</span>
+                        </button>
+                        <button data-tab="body" class="tab-btn px-3 py-2.5 text-xs font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5 transition">
+                            Body
+                            <span id="body-active-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-500 hidden"></span>
+                        </button>
+                        <button data-tab="auth" class="tab-btn px-3 py-2.5 text-xs font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5 transition">
+                            Auth
+                            <span id="auth-active-indicator" class="w-1.5 h-1.5 rounded-full bg-blue-500 hidden"></span>
+                        </button>
+                    </nav>
+
+                    <span class="text-[11px] text-zinc-500 hidden sm:inline">Request Configuration</span>
+                </div>
+
+                <!-- Tab Panels Area -->
+                <div class="flex-1 overflow-y-auto p-4 bg-zinc-950">
+
+                    <!-- TAB 1: Query Params -->
+                    <div id="panel-params" class="tab-panel space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Query Parameters</span>
+                            <button id="btn-add-param" class="h-7 px-2 text-xs rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 flex items-center gap-1 transition">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Param
+                            </button>
+                        </div>
+                        <div class="border border-zinc-800 rounded-lg overflow-hidden bg-zinc-925">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-zinc-900 border-b border-zinc-800 text-zinc-400 text-[11px] font-medium uppercase tracking-wider">
+                                    <tr>
+                                        <th class="w-8 px-2 py-2 text-center"></th>
+                                        <th class="px-3 py-2">Key</th>
+                                        <th class="px-3 py-2">Value</th>
+                                        <th class="w-10 px-2 py-2 text-center"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="params-table-body" class="divide-y divide-zinc-800/60 font-mono">
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="text-[11px] text-zinc-500 italic">Parameters sync automatically with the URL address above in both directions.</p>
+                    </div>
+
+                    <!-- TAB 2: Headers -->
+                    <div id="panel-headers" class="tab-panel hidden space-y-3">
+                        <div class="flex items-center justify-between flex-wrap gap-2">
+                            <span class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Request Headers</span>
+                            <div class="flex items-center gap-1.5">
+                                <button id="btn-preset-json-header" class="h-6 px-2 text-[11px] rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-zinc-200 transition">
+                                    + Content-Type: JSON
+                                </button>
+                                <button id="btn-add-header" class="h-7 px-2 text-xs rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 flex items-center gap-1 transition">
+                                    <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Header
+                                </button>
+                            </div>
+                        </div>
+                        <div class="border border-zinc-800 rounded-lg overflow-hidden bg-zinc-925">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-zinc-900 border-b border-zinc-800 text-zinc-400 text-[11px] font-medium uppercase tracking-wider">
+                                    <tr>
+                                        <th class="w-8 px-2 py-2 text-center"></th>
+                                        <th class="px-3 py-2">Header Name</th>
+                                        <th class="px-3 py-2">Value</th>
+                                        <th class="w-10 px-2 py-2 text-center"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="headers-table-body" class="divide-y divide-zinc-800/60 font-mono">
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- TAB 3: Request Body -->
+                    <div id="panel-body" class="tab-panel hidden flex flex-col h-full space-y-2">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">JSON Payload</span>
+                                <span id="json-validator-badge" class="text-[10px] px-1.5 py-0.5 rounded font-mono bg-zinc-800 text-zinc-400">Valid JSON</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <select id="body-template-select" class="h-7 px-2 bg-zinc-900 border border-zinc-800 rounded text-[11px] text-zinc-400 hover:text-zinc-200 transition shadcn-focus">
+                                    <option value="" disabled selected>Templates...</option>
+                                    <option value="user">User Object</option>
+                                    <option value="post">Post Object</option>
+                                    <option value="empty-object">Empty Object {}</option>
+                                    <option value="array">List / Array []</option>
+                                </select>
+                                <button id="btn-format-json" class="h-7 px-2.5 text-xs rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 flex items-center gap-1.5 transition">
+                                    <i data-lucide="align-left" class="w-3.5 h-3.5"></i>
+                                    <span>Prettify</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="relative flex-1 min-h-[220px]">
+                            <textarea id="request-body-json" class="w-full h-full min-h-[220px] bg-zinc-925 border border-zinc-800 rounded-lg p-3 font-mono text-xs text-zinc-200 placeholder-zinc-600 shadcn-focus resize-none leading-relaxed" placeholder="{\n  &quot;title&quot;: &quot;foo&quot;,\n  &quot;body&quot;: &quot;bar&quot;,\n  &quot;userId&quot;: 1\n}" spellcheck="false"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- TAB 4: Authorization -->
+                    <div id="panel-auth" class="tab-panel hidden space-y-4 max-w-lg">
+                        <div>
+                            <span class="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-2">Authorization Type</span>
+                            <select id="auth-type-select" class="w-full h-9 bg-zinc-900 border border-zinc-800 rounded-md px-3 text-xs text-zinc-200 shadcn-focus">
+                                <option value="none">No Auth</option>
+                                <option value="bearer">Bearer Token</option>
+                                <option value="basic">Basic Auth (Username / Password)</option>
+                            </select>
+                        </div>
+
+                        <!-- Auth Mode: Bearer -->
+                        <div id="auth-bearer-container" class="space-y-2 hidden">
+                            <label class="text-xs font-medium text-zinc-300">Token</label>
+                            <input type="text" id="auth-bearer-token" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." class="w-full h-9 bg-zinc-900 border border-zinc-800 rounded-md px-3 font-mono text-xs text-zinc-200 placeholder-zinc-600 shadcn-focus">
+                            <p class="text-[11px] text-zinc-500">Will be dispatched as <code class="text-zinc-400">Authorization: Bearer &lt;token&gt;</code>.</p>
+                        </div>
+
+                        <!-- Auth Mode: Basic -->
+                        <div id="auth-basic-container" class="space-y-3 hidden">
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="space-y-1">
+                                    <label class="text-xs font-medium text-zinc-300">Username</label>
+                                    <input type="text" id="auth-basic-user" placeholder="admin" class="w-full h-9 bg-zinc-900 border border-zinc-800 rounded-md px-3 font-mono text-xs text-zinc-200 shadcn-focus">
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-xs font-medium text-zinc-300">Password</label>
+                                    <input type="password" id="auth-basic-pass" placeholder="••••••••" class="w-full h-9 bg-zinc-900 border border-zinc-800 rounded-md px-3 font-mono text-xs text-zinc-200 shadcn-focus">
+                                </div>
+                            </div>
+                            <p class="text-[11px] text-zinc-500">Will be encoded with standard Base64 Authorization header.</p>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- Right Pane: Response Viewer (5 Cols) -->
+            <section class="lg:col-span-5 flex flex-col h-full overflow-hidden bg-zinc-950">
+                
+                <!-- Response Status Meta Bar -->
+                <div class="p-3 border-b border-zinc-800 bg-zinc-950 flex items-center justify-between shrink-0 min-h-[57px]">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Response</span>
+                        <div id="res-status-badge" class="hidden items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold border">
+                            <!-- e.g. 200 OK -->
+                        </div>
+                    </div>
+
+                    <!-- Timing and Size Badges -->
+                    <div id="res-metrics" class="hidden items-center gap-2 text-xs font-mono text-zinc-400">
+                        <span class="flex items-center gap-1 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded">
+                            <i data-lucide="clock" class="w-3 h-3 text-zinc-500"></i>
+                            <span id="res-time">0 ms</span>
+                        </span>
+                        <span class="flex items-center gap-1 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded">
+                            <i data-lucide="database" class="w-3 h-3 text-zinc-500"></i>
+                            <span id="res-size">0 KB</span>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Response Tabs & Action Bar -->
+                <div class="border-b border-zinc-800 px-3 bg-zinc-925 flex items-center justify-between shrink-0">
+                    <nav class="flex items-center gap-1 -mb-px" id="res-tabs">
+                        <button data-res-tab="pretty" class="res-tab-btn active px-3 py-2 text-xs font-medium border-b-2 border-zinc-100 text-zinc-100 transition">
+                            Pretty
+                        </button>
+                        <button data-res-tab="raw" class="res-tab-btn px-3 py-2 text-xs font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 transition">
+                            Raw
+                        </button>
+                        <button data-res-tab="headers" class="res-tab-btn px-3 py-2 text-xs font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 transition">
+                            Headers
+                        </button>
+                        <button data-res-tab="preview" class="res-tab-btn px-3 py-2 text-xs font-medium border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 transition">
+                            Preview
+                        </button>
+                    </nav>
+
+                    <div class="flex items-center gap-1">
+                        <button id="btn-copy-response" title="Copy response content" class="h-7 px-2 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs flex items-center gap-1 transition">
+                            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                            <span class="hidden sm:inline">Copy</span>
+                        </button>
+                        <button id="btn-download-response" title="Download as file" class="h-7 px-2 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs flex items-center gap-1 transition">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Response Panels / Body Content -->
+                <div class="flex-1 overflow-hidden relative bg-zinc-950 flex flex-col">
+                    
+                    <!-- Empty State Placeholder -->
+                    <div id="response-empty" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-zinc-500">
+                        <div class="w-12 h-12 rounded-full border border-zinc-800 bg-zinc-900 flex items-center justify-center mb-3 text-zinc-400">
+                            <i data-lucide="arrow-up-right" class="w-5 h-5"></i>
+                        </div>
+                        <h4 class="text-sm font-semibold text-zinc-300">Ready to Send</h4>
+                        <p class="text-xs max-w-xs mt-1 text-zinc-500">Configure your method, endpoint, headers, and click Send to inspect server output.</p>
+                    </div>
+
+                    <!-- Loader State -->
+                    <div id="response-loading" class="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 hidden">
+                        <div class="w-8 h-8 border-2 border-zinc-700 border-t-zinc-200 rounded-full animate-spin mb-3"></div>
+                        <span class="text-xs font-mono text-zinc-300">Dispatching HTTP request...</span>
+                    </div>
+
+                    <!-- TAB: Pretty JSON Highlighted -->
+                    <div id="res-panel-pretty" class="res-panel flex-1 overflow-auto p-4 hidden font-mono text-xs leading-relaxed select-text">
+                        <pre id="pretty-output" class="text-zinc-300 whitespace-pre-wrap break-words"></pre>
+                    </div>
+
+                    <!-- TAB: Raw String -->
+                    <div id="res-panel-raw" class="res-panel flex-1 overflow-auto p-4 hidden font-mono text-xs select-text">
+                        <pre id="raw-output" class="text-zinc-400 whitespace-pre-wrap break-words"></pre>
+                    </div>
+
+                    <!-- TAB: Response Headers Table -->
+                    <div id="res-panel-headers" class="res-panel flex-1 overflow-auto p-4 hidden">
+                        <div class="border border-zinc-800 rounded-lg overflow-hidden bg-zinc-925">
+                            <table class="w-full text-left text-xs font-mono">
+                                <thead class="bg-zinc-900 border-b border-zinc-800 text-zinc-400 text-[11px] font-sans font-medium uppercase tracking-wider">
+                                    <tr>
+                                        <th class="px-3 py-2 w-1/3">Header</th>
+                                        <th class="px-3 py-2">Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="res-headers-table-body" class="divide-y divide-zinc-800/60 text-zinc-300">
+                                    <!-- Dynamic response headers -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- TAB: HTML Web Preview -->
+                    <div id="res-panel-preview" class="res-panel flex-1 overflow-hidden p-2 hidden">
+                        <iframe id="preview-iframe" sandbox="allow-same-origin" class="w-full h-full bg-white rounded border border-zinc-800"></iframe>
+                    </div>
+
+                    <!-- CORS / Network Error Modal Banner -->
+                    <div id="cors-notice" class="hidden m-4 p-4 rounded-lg border border-amber-900/60 bg-amber-950/20 text-xs text-amber-200 space-y-2">
+                        <div class="flex items-center gap-2 font-semibold text-amber-300">
+                            <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-400"></i>
+                            <span>Network Failure / Cross-Origin (CORS) Block</span>
+                        </div>
+                        <p class="text-amber-200/80 leading-relaxed">
+                            Web browsers automatically enforce CORS policy on in-browser <code class="font-mono bg-amber-950 px-1 py-0.5 rounded text-amber-100">fetch()</code>. If the target server does not send the <code class="font-mono">Access-Control-Allow-Origin</code> header, browser security blocks reading the response.
+                        </p>
+                        <div class="flex items-center gap-2 pt-1">
+                            <span class="text-[11px] text-amber-400 font-medium">Safe testing targets:</span>
+                            <span class="font-mono text-[10px] bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 text-zinc-300">jsonplaceholder.typicode.com</span>
+                            <span class="font-mono text-[10px] bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 text-zinc-300">httpbin.org</span>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        // ==========================================
+        // State Management
+        // ==========================================
+        const state = {
+            method: 'GET',
+            url: 'https://jsonplaceholder.typicode.com/posts/1',
+            params: [],
+            headers: [
+                { id: 'h-1', enabled: true, key: 'Accept', value: 'application/json' }
+            ],
+            body: '',
+            auth: {
+                type: 'none',
+                bearer: '',
+                basicUser: '',
+                basicPass: ''
+            },
+            history: [],
+            activeRequestController: null,
+            latestResponse: null,
+            latestDuration: 0,
+            latestSize: 0
+        };
+
+        // Initialize Lucide Icons
+        function renderIcons() {
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        // Method Styling Utility
+        // ==========================================
+        const METHOD_COLORS = {
+            GET: 'text-emerald-400',
+            POST: 'text-blue-400',
+            PUT: 'text-amber-400',
+            PATCH: 'text-purple-400',
+            DELETE: 'text-rose-400'
+        };
+
+        const METHOD_BADGES = {
+            GET: 'bg-emerald-950/60 text-emerald-400 border-emerald-800/80',
+            POST: 'bg-blue-950/60 text-blue-400 border-blue-800/80',
+            PUT: 'bg-amber-950/60 text-amber-400 border-amber-800/80',
+            PATCH: 'bg-purple-950/60 text-purple-400 border-purple-800/80',
+            DELETE: 'bg-rose-950/60 text-rose-400 border-rose-800/80'
+        };
+
+        const methodSelect = document.getElementById('http-method');
+        methodSelect.addEventListener('change', (e) => {
+            const val = e.target.value;
+            state.method = val;
+            updateMethodTheme(val);
+        });
+
+        function updateMethodTheme(method) {
+            methodSelect.className = `h-10 pl-3 pr-8 bg-zinc-900 border border-zinc-800 rounded-md font-mono text-xs font-bold tracking-wider cursor-pointer appearance-none shadcn-focus transition ${METHOD_COLORS[method] || 'text-zinc-100'}`;
+        }
+
+        // ==========================================
+        // URL & Query Params Two-Way Synchronization
+        // ==========================================
+        const urlInput = document.getElementById('request-url');
+        const clearUrlBtn = document.getElementById('btn-clear-url');
+
+        urlInput.addEventListener('input', () => {
+            state.url = urlInput.value;
+            clearUrlBtn.classList.toggle('hidden', !urlInput.value);
+            syncParamsFromUrl();
+        });
+
+        clearUrlBtn.addEventListener('click', () => {
+            urlInput.value = '';
+            state.url = '';
+            state.params = [];
+            clearUrlBtn.classList.add('hidden');
+            renderParamsTable();
+            updateParamCountDisplay();
+        });
+
+        function syncParamsFromUrl() {
+            try {
+                const urlObj = new URL(urlInput.value);
+                const params = [];
+                let idx = 0;
+                urlObj.searchParams.forEach((value, key) => {
+                    params.push({ id: `p-${Date.now()}-${idx++}`, enabled: true, key, value });
+                });
+                state.params = params;
+                renderParamsTable();
+                updateParamCountDisplay();
+            } catch (err) {
+                // If incomplete URL, don't crash
+            }
+        }
+
+        function syncUrlFromParams() {
+            try {
+                const current = urlInput.value.trim();
+                const base = current.split('?')[0];
+                if (!base) return;
+
+                const queryParts = [];
+                state.params.forEach(param => {
+                    if (param.enabled && param.key.trim() !== '') {
+                        queryParts.push(`${encodeURIComponent(param.key.trim())}=${encodeURIComponent(param.value || '')}`);
+                    }
+                });
+
+                const newUrl = queryParts.length > 0 ? `${base}?${queryParts.join('&')}` : base;
+                urlInput.value = newUrl;
+                state.url = newUrl;
+                updateParamCountDisplay();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function updateParamCountDisplay() {
+            const enabledCount = state.params.filter(p => p.enabled && p.key.trim() !== '').length;
+            document.getElementById('url-param-count').textContent = `${enabledCount} param${enabledCount === 1 ? '' : 's'}`;
+            
+            const badge = document.getElementById('tab-count-params');
+            if (enabledCount > 0) {
+                badge.textContent = enabledCount;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        // ==========================================
+        // Params & Headers Table Renders
+        // ==========================================
+        const paramsTableBody = document.getElementById('params-table-body');
+        const headersTableBody = document.getElementById('headers-table-body');
+
+        function renderParamsTable() {
+            paramsTableBody.innerHTML = '';
+            if (state.params.length === 0) {
+                paramsTableBody.innerHTML = `<tr><td colspan="4" class="px-4 py-3 text-center text-zinc-600 font-sans text-xs italic">No query parameters defined. Click "+ Add Param" to add one.</td></tr>`;
+                return;
+            }
+
+            state.params.forEach((param, index) => {
+                const tr = document.createElement('tr');
+                tr.className = 'group hover:bg-zinc-900/40 transition';
+                tr.innerHTML = `
+                    <td class="px-2 py-1.5 text-center">
+                        <input type="checkbox" ${param.enabled ? 'checked' : ''} data-index="${index}" class="param-checkbox rounded bg-zinc-900 border-zinc-700 text-zinc-100 focus:ring-0 cursor-pointer">
+                    </td>
+                    <td class="px-2 py-1">
+                        <input type="text" value="${escapeHtml(param.key)}" data-index="${index}" placeholder="Parameter key" class="param-key-input w-full bg-transparent border-0 px-1 py-1 text-xs text-zinc-200 placeholder-zinc-600 shadcn-focus rounded">
+                    </td>
+                    <td class="px-2 py-1">
+                        <input type="text" value="${escapeHtml(param.value)}" data-index="${index}" placeholder="Value" class="param-value-input w-full bg-transparent border-0 px-1 py-1 text-xs text-zinc-200 placeholder-zinc-600 shadcn-focus rounded">
+                    </td>
+                    <td class="px-2 py-1 text-center">
+                        <button data-index="${index}" class="btn-del-param text-zinc-500 hover:text-rose-400 p-1 rounded transition opacity-60 group-hover:opacity-100">
+                            <i data-lucide="trash" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </td>
+                `;
+                paramsTableBody.appendChild(tr);
+            });
+            renderIcons();
+            attachParamRowListeners();
+        }
+
+        function attachParamRowListeners() {
+            document.querySelectorAll('.param-checkbox').forEach(cb => {
+                cb.addEventListener('change', (e) => {
+                    const idx = e.target.getAttribute('data-index');
+                    state.params[idx].enabled = e.target.checked;
+                    syncUrlFromParams();
+                });
+            });
+            document.querySelectorAll('.param-key-input').forEach(inp => {
+                inp.addEventListener('input', (e) => {
+                    const idx = e.target.getAttribute('data-index');
+                    state.params[idx].key = e.target.value;
+                    syncUrlFromParams();
+                });
+            });
+            document.querySelectorAll('.param-value-input').forEach(inp => {
+                inp.addEventListener('input', (e) => {
+                    const idx = e.target.getAttribute('data-index');
+                    state.params[idx].value = e.target.value;
+                    syncUrlFromParams();
+                });
+            });
+            document.querySelectorAll('.btn-del-param').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const idx = e.currentTarget.getAttribute('data-index');
+                    state.params.splice(idx, 1);
+                    renderParamsTable();
+                    syncUrlFromParams();
+                });
+            });
+        }
+
+        document.getElementById('btn-add-param').addEventListener('click', () => {
+            state.params.push({ id: `p-${Date.now()}`, enabled: true, key: '', value: '' });
+            renderParamsTable();
+        });
+
+        // Headers
+        function renderHeadersTable() {
+            headersTableBody.innerHTML = '';
+            if (state.headers.length === 0) {
+                headersTableBody.innerHTML = `<tr><td colspan="4" class="px-4 py-3 text-center text-zinc-600 font-sans text-xs italic">No headers set. Click "+ Add Header" to define headers.</td></tr>`;
+                return;
+            }
+
+            state.headers.forEach((h, index) => {
+                const tr = document.createElement('tr');
+                tr.className = 'group hover:bg-zinc-900/40 transition';
+                tr.innerHTML = `
+                    <td class="px-2 py-1.5 text-center">
+                        <input type="checkbox" ${h.enabled ? 'checked' : ''} data-index="${index}" class="header-checkbox rounded bg-zinc-900 border-zinc-700 text-zinc-100 focus:ring-0 cursor-pointer">
+                    </td>
+                    <td class="px-2 py-1">
+                        <input type="text" value="${escapeHtml(h.key)}" data-index="${index}" placeholder="Header" class="header-key-input w-full bg-transparent border-0 px-1 py-1 text-xs text-zinc-200 placeholder-zinc-600 shadcn-focus rounded">
+                    </td>
+                    <td class="px-2 py-1">
+                        <input type="text" value="${escapeHtml(h.value)}" data-index="${index}" placeholder="Value" class="header-value-input w-full bg-transparent border-0 px-1 py-1 text-xs text-zinc-200 placeholder-zinc-600 shadcn-focus rounded">
+                    </td>
+                    <td class="px-2 py-1 text-center">
+                        <button data-index="${index}" class="btn-del-header text-zinc-500 hover:text-rose-400 p-1 rounded transition opacity-60 group-hover:opacity-100">
+                            <i data-lucide="trash" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </td>
+                `;
+                headersTableBody.appendChild(tr);
+            });
+            renderIcons();
+            attachHeaderRowListeners();
+
+            const enabledCount = state.headers.filter(h => h.enabled && h.key.trim() !== '').length;
+            document.getElementById('tab-count-headers').textContent = enabledCount;
+        }
+
+        function attachHeaderRowListeners() {
+            document.querySelectorAll('.header-checkbox').forEach(cb => {
+                cb.addEventListener('change', (e) => {
+                    const idx = e.target.getAttribute('data-index');
+                    state.headers[idx].enabled = e.target.checked;
+                    renderHeadersTable();
+                });
+            });
+            document.querySelectorAll('.header-key-input').forEach(inp => {
+                inp.addEventListener('input', (e) => {
+                    const idx = e.target.getAttribute('data-index');
+                    state.headers[idx].key = e.target.value;
+                });
+            });
+            document.querySelectorAll('.header-value-input').forEach(inp => {
+                inp.addEventListener('input', (e) => {
+                    const idx = e.target.getAttribute('data-index');
+                    state.headers[idx].value = e.target.value;
+                });
+            });
+            document.querySelectorAll('.btn-del-header').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const idx = e.currentTarget.getAttribute('data-index');
+                    state.headers.splice(idx, 1);
+                    renderHeadersTable();
+                });
+            });
+        }
+
+        document.getElementById('btn-add-header').addEventListener('click', () => {
+            state.headers.push({ id: `h-${Date.now()}`, enabled: true, key: '', value: '' });
+            renderHeadersTable();
+        });
+
+        document.getElementById('btn-preset-json-header').addEventListener('click', () => {
+            const exists = state.headers.some(h => h.key.toLowerCase() === 'content-type');
+            if (!exists) {
+                state.headers.push({ id: `h-${Date.now()}`, enabled: true, key: 'Content-Type', value: 'application/json' });
+            }
+            renderHeadersTable();
+        });
+
+        // ==========================================
+        // Request Body & JSON Beautifier
+        // ==========================================
+        const bodyTextarea = document.getElementById('request-body-json');
+        const validatorBadge = document.getElementById('json-validator-badge');
+        const bodyActiveDot = document.getElementById('body-active-dot');
+
+        bodyTextarea.addEventListener('input', () => {
+            state.body = bodyTextarea.value;
+            validateJsonBody();
+        });
+
+        function validateJsonBody() {
+            const raw = bodyTextarea.value.trim();
+            if (!raw) {
+                validatorBadge.textContent = 'Empty';
+                validatorBadge.className = 'text-[10px] px-1.5 py-0.5 rounded font-mono bg-zinc-800 text-zinc-400';
+                bodyActiveDot.classList.add('hidden');
+                return true;
+            }
+
+            bodyActiveDot.classList.remove('hidden');
+
+            try {
+                JSON.parse(raw);
+                validatorBadge.textContent = 'Valid JSON';
+                validatorBadge.className = 'text-[10px] px-1.5 py-0.5 rounded font-mono bg-emerald-950/80 text-emerald-400 border border-emerald-800/80';
+                return true;
+            } catch (err) {
+                validatorBadge.textContent = 'Invalid JSON';
+                validatorBadge.className = 'text-[10px] px-1.5 py-0.5 rounded font-mono bg-rose-950/80 text-rose-400 border border-rose-800/80';
+                return false;
+            }
+        }
+
+        document.getElementById('btn-format-json').addEventListener('click', () => {
+            const raw = bodyTextarea.value.trim();
+            if (!raw) return;
+            try {
+                const parsed = JSON.parse(raw);
+                bodyTextarea.value = JSON.stringify(parsed, null, 2);
+                state.body = bodyTextarea.value;
+                validateJsonBody();
+            } catch (err) {
+                // leave as is if invalid
+            }
+        });
+
+        document.getElementById('body-template-select').addEventListener('change', (e) => {
+            const val = e.target.value;
+            if (val === 'user') {
+                bodyTextarea.value = JSON.stringify({ name: "Jane Doe", email: "jane.doe@example.com", role: "Developer" }, null, 2);
+            } else if (val === 'post') {
+                bodyTextarea.value = JSON.stringify({ title: "Exploring HTTP APIs with RestForge", body: "A streamlined client for frontend devs", userId: 1 }, null, 2);
+            } else if (val === 'empty-object') {
+                bodyTextarea.value = "{\n  \n}";
+            } else if (val === 'array') {
+                bodyTextarea.value = "[\n  \n]";
+            }
+            state.body = bodyTextarea.value;
+            validateJsonBody();
+            e.target.value = '';
+        });
+
+        // ==========================================
+        // Authentication Settings
+        // ==========================================
+        const authTypeSelect = document.getElementById('auth-type-select');
+        const authBearerContainer = document.getElementById('auth-bearer-container');
+        const authBasicContainer = document.getElementById('auth-basic-container');
+        const authIndicator = document.getElementById('auth-active-indicator');
+
+        authTypeSelect.addEventListener('change', (e) => {
+            state.auth.type = e.target.value;
+            updateAuthUi();
+        });
+
+        function updateAuthUi() {
+            authBearerContainer.classList.add('hidden');
+            authBasicContainer.classList.add('hidden');
+            authIndicator.classList.add('hidden');
+
+            if (state.auth.type === 'bearer') {
+                authBearerContainer.classList.remove('hidden');
+                authIndicator.classList.remove('hidden');
+            } else if (state.auth.type === 'basic') {
+                authBasicContainer.classList.remove('hidden');
+                authIndicator.classList.remove('hidden');
+            }
+        }
+
+        document.getElementById('auth-bearer-token').addEventListener('input', (e) => {
+            state.auth.bearer = e.target.value;
+        });
+        document.getElementById('auth-basic-user').addEventListener('input', (e) => {
+            state.auth.basicUser = e.target.value;
+        });
+        document.getElementById('auth-basic-pass').addEventListener('input', (e) => {
+            state.auth.basicPass = e.target.value;
+        });
+
+        // ==========================================
+        // Request & Response Tab Switching
+        // ==========================================
+        const reqTabBtns = document.querySelectorAll('#req-tabs .tab-btn');
+        const reqPanels = {
+            params: document.getElementById('panel-params'),
+            headers: document.getElementById('panel-headers'),
+            body: document.getElementById('panel-body'),
+            auth: document.getElementById('panel-auth')
+        };
+
+        reqTabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const target = btn.getAttribute('data-tab');
+                reqTabBtns.forEach(b => {
+                    b.classList.remove('active', 'border-zinc-100', 'text-zinc-100');
+                    b.classList.add('border-transparent', 'text-zinc-400');
+                });
+                btn.classList.add('active', 'border-zinc-100', 'text-zinc-100');
+                btn.classList.remove('border-transparent', 'text-zinc-400');
+
+                Object.keys(reqPanels).forEach(key => {
+                    reqPanels[key].classList.toggle('hidden', key !== target);
+                });
+            });
+        });
+
+        const resTabBtns = document.querySelectorAll('#res-tabs .res-tab-btn');
+        const resPanels = {
+            pretty: document.getElementById('res-panel-pretty'),
+            raw: document.getElementById('res-panel-raw'),
+            headers: document.getElementById('res-panel-headers'),
+            preview: document.getElementById('res-panel-preview')
+        };
+
+        resTabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const target = btn.getAttribute('data-res-tab');
+                resTabBtns.forEach(b => {
+                    b.classList.remove('active', 'border-zinc-100', 'text-zinc-100');
+                    b.classList.add('border-transparent', 'text-zinc-400');
+                });
+                btn.classList.add('active', 'border-zinc-100', 'text-zinc-100');
+                btn.classList.remove('border-transparent', 'text-zinc-400');
+
+                Object.keys(resPanels).forEach(key => {
+                    resPanels[key].classList.toggle('hidden', key !== target);
+                });
+            });
+        });
+
+        // ==========================================
+        // Presets Engine
+        // ==========================================
+        const presets = {
+            'get-users': {
+                method: 'GET',
+                url: 'https://jsonplaceholder.typicode.com/users',
+                body: '',
+                headers: [{ id: 'h-1', enabled: true, key: 'Accept', value: 'application/json' }]
+            },
+            'post-posts': {
+                method: 'POST',
+                url: 'https://jsonplaceholder.typicode.com/posts',
+                body: JSON.stringify({ title: "New Release", body: "RestForge v1.0 is live!", userId: 42 }, null, 2),
+                headers: [
+                    { id: 'h-1', enabled: true, key: 'Content-Type', value: 'application/json' },
+                    { id: 'h-2', enabled: true, key: 'Accept', value: 'application/json' }
+                ]
+            },
+            'put-posts': {
+                method: 'PUT',
+                url: 'https://jsonplaceholder.typicode.com/posts/1',
+                body: JSON.stringify({ id: 1, title: "Updated Post Title", body: "Overwritten content here", userId: 1 }, null, 2),
+                headers: [{ id: 'h-1', enabled: true, key: 'Content-Type', value: 'application/json' }]
+            },
+            'patch-posts': {
+                method: 'PATCH',
+                url: 'https://jsonplaceholder.typicode.com/posts/1',
+                body: JSON.stringify({ title: "Patch-only modified title" }, null, 2),
+                headers: [{ id: 'h-1', enabled: true, key: 'Content-Type', value: 'application/json' }]
+            },
+            'delete-posts': {
+                method: 'DELETE',
+                url: 'https://jsonplaceholder.typicode.com/posts/1',
+                body: '',
+                headers: []
+            },
+            'httpbin-headers': {
+                method: 'GET',
+                url: 'https://httpbin.org/headers',
+                body: '',
+                headers: [
+                    { id: 'h-1', enabled: true, key: 'X-Client-Agent', value: 'RestForge-Studio' },
+                    { id: 'h-2', enabled: true, key: 'Accept', value: 'application/json' }
+                ]
+            },
+            'httpbin-status404': {
+                method: 'GET',
+                url: 'https://httpbin.org/status/404',
+                body: '',
+                headers: []
+            }
+        };
+
+        document.getElementById('preset-select').addEventListener('change', (e) => {
+            const key = e.target.value;
+            if (presets[key]) {
+                loadRequestConfig(presets[key]);
+            }
+            e.target.value = '';
+        });
+
+        function loadRequestConfig(config) {
+            state.method = config.method;
+            methodSelect.value = config.method;
+            updateMethodTheme(config.method);
+
+            state.url = config.url;
+            urlInput.value = config.url;
+            clearUrlBtn.classList.remove('hidden');
+
+            state.body = config.body || '';
+            bodyTextarea.value = state.body;
+            validateJsonBody();
+
+            state.headers = config.headers ? JSON.parse(JSON.stringify(config.headers)) : [];
+            renderHeadersTable();
+
+            syncParamsFromUrl();
+        }
+
+        // ==========================================
+        // HTTP Execution via Fetch API
+        // ==========================================
+        const btnSend = document.getElementById('btn-send');
+        const btnCancel = document.getElementById('btn-cancel');
+        const resLoading = document.getElementById('response-loading');
+        const resEmpty = document.getElementById('response-empty');
+        const corsNotice = document.getElementById('cors-notice');
+        const resStatusBadge = document.getElementById('res-status-badge');
+        const resMetrics = document.getElementById('res-metrics');
+        const resTime = document.getElementById('res-time');
+        const resSize = document.getElementById('res-size');
+        const prettyOutput = document.getElementById('pretty-output');
+        const rawOutput = document.getElementById('raw-output');
+        const resHeadersTableBody = document.getElementById('res-headers-table-body');
+        const previewIframe = document.getElementById('preview-iframe');
+
+        btnSend.addEventListener('click', executeRequest);
+        btnCancel.addEventListener('click', cancelRequest);
+
+        // Keyboard Shortcut: Cmd/Ctrl + Enter
+        window.addEventListener('keydown', (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                e.preventDefault();
+                executeRequest();
+            }
+        });
+
+        async function executeRequest() {
+            const targetUrl = urlInput.value.trim();
+            if (!targetUrl) {
+                urlInput.focus();
+                return;
+            }
+
+            // Reset UI states
+            corsNotice.classList.add('hidden');
+            resEmpty.classList.add('hidden');
+            resLoading.classList.remove('hidden');
+            btnSend.classList.add('hidden');
+            btnCancel.classList.remove('hidden');
+            btnCancel.classList.add('flex');
+
+            // Setup AbortController
+            state.activeRequestController = new AbortController();
+            const signal = state.activeRequestController.signal;
+
+            // Build Headers object
+            const headersMap = new Headers();
+            state.headers.forEach(h => {
+                if (h.enabled && h.key.trim()) {
+                    headersMap.append(h.key.trim(), h.value);
+                }
+            });
+
+            // Apply Auth
+            if (state.auth.type === 'bearer' && state.auth.bearer.trim()) {
+                headersMap.set('Authorization', `Bearer ${state.auth.bearer.trim()}`);
+            } else if (state.auth.type === 'basic' && (state.auth.basicUser || state.auth.basicPass)) {
+                const token = btoa(`${state.auth.basicUser}:${state.auth.basicPass}`);
+                headersMap.set('Authorization', `Basic ${token}`);
+            }
+
+            // Build Options
+            const options = {
+                method: state.method,
+                headers: headersMap,
+                signal
+            };
+
+            // Attach Body if supported
+            if (['POST', 'PUT', 'PATCH'].includes(state.method) && state.body.trim()) {
+                options.body = state.body;
+            }
+
+            const startTime = performance.now();
+
+            try {
+                const response = await fetch(targetUrl, options);
+                const duration = Math.round(performance.now() - startTime);
+
+                const responseText = await response.text();
+                const byteSize = new Blob([responseText]).size;
+
+                handleSuccessResponse(response, responseText, duration, byteSize);
+                saveToHistory({
+                    method: state.method,
+                    url: targetUrl,
+                    status: response.status,
+                    time: duration,
+                    timestamp: Date.now()
+                });
+            } catch (error) {
+                const duration = Math.round(performance.now() - startTime);
+                handleErrorResponse(error, duration);
+            } finally {
+                resLoading.classList.add('hidden');
+                btnSend.classList.remove('hidden');
+                btnCancel.classList.add('hidden');
+                btnCancel.classList.remove('flex');
+                state.activeRequestController = null;
+            }
+        }
+
+        function cancelRequest() {
+            if (state.activeRequestController) {
+                state.activeRequestController.abort();
+            }
+        }
+
+        function handleSuccessResponse(response, text, duration, size) {
+            state.latestResponse = text;
+            state.latestDuration = duration;
+            state.latestSize = size;
+
+            // Status Badge Formatting
+            resStatusBadge.classList.remove('hidden');
+            resStatusBadge.innerHTML = `<span>${response.status}</span> <span class="text-zinc-400 font-sans text-[11px]">${response.statusText || 'Response'}</span>`;
+            
+            if (response.status >= 200 && response.status < 300) {
+                resStatusBadge.className = 'flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold border bg-emerald-950/60 text-emerald-400 border-emerald-800/80';
+            } else if (response.status >= 300 && response.status < 400) {
+                resStatusBadge.className = 'flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold border bg-blue-950/60 text-blue-400 border-blue-800/80';
+            } else if (response.status >= 400 && response.status < 500) {
+                resStatusBadge.className = 'flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold border bg-amber-950/60 text-amber-400 border-amber-800/80';
+            } else {
+                resStatusBadge.className = 'flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold border bg-rose-950/60 text-rose-400 border-rose-800/80';
+            }
+
+            // Duration & Size
+            resMetrics.classList.remove('hidden');
+            resMetrics.classList.add('flex');
+            resTime.textContent = `${duration} ms`;
+            resSize.textContent = size > 1024 ? `${(size / 1024).toFixed(1)} KB` : `${size} B`;
+
+            // Raw Output
+            rawOutput.textContent = text || '// Empty response body';
+
+            // Pretty Output (JSON / HTML)
+            let formattedJson = null;
+            try {
+                const parsed = JSON.parse(text);
+                formattedJson = JSON.stringify(parsed, null, 2);
+                prettyOutput.innerHTML = syntaxHighlightJson(formattedJson);
+            } catch (e) {
+                prettyOutput.textContent = text || '// Empty response body';
+            }
+
+            // Response Headers Table
+            resHeadersTableBody.innerHTML = '';
+            response.headers.forEach((val, key) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-3 py-1.5 text-zinc-400">${escapeHtml(key)}</td>
+                    <td class="px-3 py-1.5 text-zinc-200 select-all">${escapeHtml(val)}</td>
+                `;
+                resHeadersTableBody.appendChild(tr);
+            });
+
+            // Preview iframe
+            const isHtml = (response.headers.get('content-type') || '').includes('text/html');
+            if (isHtml) {
+                previewIframe.srcdoc = text;
+            } else {
+                previewIframe.srcdoc = `
+                    <html><body style="font-family:sans-serif; background:#090a0c; color:#a1a1aa; padding:20px; text-align:center;">
+                        <p>Preview only available for HTML Content-Type.</p>
+                        <p style="font-size:12px; color:#71717a;">Received: ${escapeHtml(response.headers.get('content-type') || 'Unknown')}</p>
+                    </body></html>
+                `;
+            }
+
+            // Show active panel
+            const activeResTab = document.querySelector('#res-tabs .res-tab-btn.active').getAttribute('data-res-tab');
+            Object.keys(resPanels).forEach(key => {
+                resPanels[key].classList.toggle('hidden', key !== activeResTab);
+            });
+        }
+
+        function handleErrorResponse(err, duration) {
+            state.latestResponse = err.message;
+            resMetrics.classList.remove('hidden');
+            resMetrics.classList.add('flex');
+            resTime.textContent = `${duration} ms`;
+            resSize.textContent = `0 B`;
+
+            resStatusBadge.classList.remove('hidden');
+            resStatusBadge.innerHTML = `<span>Error</span>`;
+            resStatusBadge.className = 'flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold border bg-rose-950/70 text-rose-400 border-rose-800';
+
+            rawOutput.textContent = `Fetch Failed: ${err.message}`;
+            prettyOutput.textContent = `Error: ${err.message}`;
+
+            if (err.name === 'AbortError') {
+                rawOutput.textContent = 'Request was cancelled by user.';
+                prettyOutput.textContent = 'Request was cancelled.';
+            } else {
+                corsNotice.classList.remove('hidden');
+            }
+
+            const activeResTab = document.querySelector('#res-tabs .res-tab-btn.active').getAttribute('data-res-tab');
+            Object.keys(resPanels).forEach(key => {
+                resPanels[key].classList.toggle('hidden', key !== activeResTab);
+            });
+        }
+
+        // ==========================================
+        // JSON Syntax Highlighter
+        // ==========================================
+        function syntaxHighlightJson(json) {
+            json = escapeHtml(json);
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                let cls = 'token-number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'token-key';
+                    } else {
+                        cls = 'token-string';
+                    }
+                } else if (/true|false/.test(match)) {
+                    cls = 'token-boolean';
+                } else if (/null/.test(match)) {
+                    cls = 'token-null';
+                }
+                return `<span class="${cls}">${match}</span>`;
+            });
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // ==========================================
+        // Response Actions (Copy & Download)
+        // ==========================================
+        document.getElementById('btn-copy-response').addEventListener('click', () => {
+            if (!state.latestResponse) return;
+            navigator.clipboard.writeText(state.latestResponse).then(() => {
+                const btn = document.getElementById('btn-copy-response');
+                const orig = btn.innerHTML;
+                btn.innerHTML = `<i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i><span class="text-emerald-400">Copied!</span>`;
+                renderIcons();
+                setTimeout(() => {
+                    btn.innerHTML = orig;
+                    renderIcons();
+                }, 1500);
+            });
+        });
+
+        document.getElementById('btn-download-response').addEventListener('click', () => {
+            if (!state.latestResponse) return;
+            const blob = new Blob([state.latestResponse], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `response-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        // ==========================================
+        // Request History with LocalStorage
+        // ==========================================
+        const historyList = document.getElementById('history-list');
+        const historySearch = document.getElementById('history-search');
+        const historyBadge = document.getElementById('history-badge');
+
+        function loadHistory() {
+            try {
+                const stored = localStorage.getItem('restforge_history');
+                state.history = stored ? JSON.parse(stored) : [];
+            } catch (e) {
+                state.history = [];
+            }
+            renderHistory();
+        }
+
+        function saveToHistory(entry) {
+            // Remove duplicates for identical URL + method
+            state.history = state.history.filter(h => !(h.url === entry.url && h.method === entry.method));
+            state.history.unshift(entry);
+            if (state.history.length > 50) state.history.pop(); // keep last 50
+            try {
+                localStorage.setItem('restforge_history', JSON.stringify(state.history));
+            } catch (e) {}
+            renderHistory();
+        }
+
+        function renderHistory(filter = '') {
+            historyList.innerHTML = '';
+            const filtered = state.history.filter(item => 
+                item.url.toLowerCase().includes(filter.toLowerCase()) || 
+                item.method.toLowerCase().includes(filter.toLowerCase())
+            );
+
+            historyBadge.textContent = state.history.length;
+
+            if (filtered.length === 0) {
+                historyList.innerHTML = `
+                    <div class="p-6 text-center text-zinc-600 text-xs">
+                        <i data-lucide="inbox" class="w-6 h-6 mx-auto mb-2 opacity-50"></i>
+                        No history records found.
+                    </div>
+                `;
+                renderIcons();
+                return;
+            }
+
+            filtered.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'p-2.5 hover:bg-zinc-900/60 cursor-pointer transition flex items-center justify-between group';
+                
+                const badgeColor = METHOD_BADGES[item.method] || 'bg-zinc-800 text-zinc-300';
+                
+                div.innerHTML = `
+                    <div class="flex items-center gap-2 overflow-hidden mr-2">
+                        <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${badgeColor} shrink-0">${item.method}</span>
+                        <span class="text-xs font-mono text-zinc-300 truncate" title="${escapeHtml(item.url)}">${escapeHtml(item.url)}</span>
+                    </div>
+                    <div class="flex items-center gap-1 shrink-0">
+                        <span class="text-[10px] font-mono text-zinc-500">${item.status || ''}</span>
+                    </div>
+                `;
+
+                div.addEventListener('click', () => {
+                    loadRequestConfig({
+                        method: item.method,
+                        url: item.url,
+                        body: '',
+                        headers: [{ id: 'h-1', enabled: true, key: 'Accept', value: 'application/json' }]
+                    });
+                });
+
+                historyList.appendChild(div);
+            });
+            renderIcons();
+        }
+
+        historySearch.addEventListener('input', (e) => {
+            renderHistory(e.target.value);
+        });
+
+        document.getElementById('btn-clear-history').addEventListener('click', () => {
+            state.history = [];
+            localStorage.removeItem('restforge_history');
+            renderHistory();
+        });
+
+        // Reset Current Request Button
+        document.getElementById('btn-reset-req').addEventListener('click', () => {
+            loadRequestConfig({
+                method: 'GET',
+                url: '',
+                body: '',
+                headers: [{ id: 'h-1', enabled: true, key: 'Accept', value: 'application/json' }]
+            });
+            urlInput.value = '';
+            clearUrlBtn.classList.add('hidden');
+        });
+
+        // ==========================================
+        // App Bootstrapping
+        // ==========================================
+        window.addEventListener('DOMContentLoaded', () => {
+            renderHeadersTable();
+            renderParamsTable();
+            updateParamCountDisplay();
+            updateMethodTheme(state.method);
+            loadHistory();
+            renderIcons();
+        });
+    </script>
+</body>
+</html>
